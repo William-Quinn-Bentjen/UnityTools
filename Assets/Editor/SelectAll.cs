@@ -26,8 +26,14 @@ class SelectAll : EditorWindow
         Within,
         Between
     }
+    enum GlobalSetting
+    {
+        Global,
+        Local
+    }
     //position (global/local support?)
     static bool careAboutPosition;
+    static GlobalSetting positionGlobalSetting;
     static Vector3Setting positionSetting;
     static Vector3 positionWithin;
     static Vector3[] positionBetween = new Vector3[2] {Vector3.zero, Vector3.zero};
@@ -38,6 +44,7 @@ class SelectAll : EditorWindow
     static Vector3[] rotationBetween = new Vector3[2] { Vector3.zero, Vector3.zero };
     //scale (global/local support?)
     static bool careAboutScale;
+    static GlobalSetting scaleGlobalSetting;
     static Vector3Setting scaleSetting;
     static Vector3 scaleWithin;
     static Vector3[] scaleBetween = new Vector3[2] { Vector3.zero, Vector3.zero };
@@ -59,11 +66,13 @@ class SelectAll : EditorWindow
     static bool careAboutComponents;
     enum ComponentSetting
     {
+        OnlyHas,
         Has,
         DoesNotHave,
     }
     static ComponentSetting componentSetting;
-    bool careAboutComponentValues;
+    static bool allowInheritedComponents;
+    static bool careAboutComponentValues;
     static bool gameObjectIsNull = true;
     [MenuItem("Window/Tools/Select All")]
     
@@ -101,6 +110,7 @@ class SelectAll : EditorWindow
         ToggleLeft("Position", ref careAboutPosition);
         if (careAboutPosition)
         {
+            positionGlobalSetting = (GlobalSetting)EditorGUILayout.EnumPopup(positionGlobalSetting);
             positionSetting = (Vector3Setting)EditorGUILayout.EnumPopup(positionSetting);
             if (positionSetting == Vector3Setting.Within)
             {
@@ -129,6 +139,7 @@ class SelectAll : EditorWindow
         ToggleLeft("Scale", ref careAboutScale);
         if (careAboutScale)
         {
+            scaleGlobalSetting = (GlobalSetting)EditorGUILayout.EnumPopup(scaleGlobalSetting);
             scaleSetting = (Vector3Setting)EditorGUILayout.EnumPopup(scaleSetting);
             if (scaleSetting == Vector3Setting.Within)
             {
@@ -150,6 +161,7 @@ class SelectAll : EditorWindow
         if (careAboutComponents)
         {
             componentSetting = (ComponentSetting)EditorGUILayout.EnumPopup(componentSetting);
+            ToggleLeft("Allow inherited components", ref allowInheritedComponents);
             ToggleLeft("Care about values", ref careAboutComponentValues);
         }
         if (GUILayout.Button("Search"))
@@ -253,7 +265,86 @@ class SelectAll : EditorWindow
             }
         }
     }
+    //position
     private void FilterPosition(List<GameObject> allGameObjects)
+    {
+        if (positionGlobalSetting == GlobalSetting.Global)
+        {
+            FilterPositionGlobal(allGameObjects);
+        }
+        else
+        {
+            FilterPositionLocal(allGameObjects);
+        }
+    }
+    private void FilterPositionLocal(List<GameObject> allGameObjects)
+    {
+        Vector3 gameObjectPosition = gameObject.transform.localPosition;
+        switch (positionSetting)
+        {
+            case Vector3Setting.Exatly:
+                for (int i = 0; i < allGameObjects.Count;)
+                {
+                    if (allGameObjects[i].transform.localPosition == gameObjectPosition)
+                    {
+                        i++;
+                    }
+                    else
+                    {
+                        allGameObjects.RemoveAt(i);
+                    }
+                }
+                break;
+            case Vector3Setting.Between:
+                //greater/less than? between values
+                Vector3Int greatestInt = new Vector3Int();
+                Vector3 greatest, least = new Vector3();
+                greatestInt.x = positionBetween[0].x > positionBetween[1].x ? 0 : 1;
+                greatestInt.y = positionBetween[0].y > positionBetween[1].y ? 0 : 1;
+                greatestInt.z = positionBetween[0].z > positionBetween[1].z ? 0 : 1;
+                //set least
+                least.x = greatestInt.x == 1 ? positionBetween[0].x : positionBetween[1].x;
+                least.y = greatestInt.y == 1 ? positionBetween[0].y : positionBetween[1].y;
+                least.z = greatestInt.z == 1 ? positionBetween[0].z : positionBetween[1].z;
+                //set greatest
+                greatest.x = greatestInt.x == 0 ? positionBetween[0].x : positionBetween[1].x;
+                greatest.y = greatestInt.y == 0 ? positionBetween[0].y : positionBetween[1].y;
+                greatest.z = greatestInt.z == 0 ? positionBetween[0].z : positionBetween[1].z;
+                for (int i = 0; i < allGameObjects.Count;)
+                {
+                    Vector3 position = allGameObjects[i].transform.localPosition;
+                    if ((position.x <= greatest.x && position.x >= least.x) &&
+                        (position.y <= greatest.y && position.y >= least.y) &&
+                        (position.z <= greatest.z && position.z >= least.z))
+                    {
+                        i++;
+                    }
+                    else
+                    {
+                        allGameObjects.RemoveAt(i);
+                    }
+                }
+                break;
+            case Vector3Setting.Within:
+                Vector3 absPositionWithin = new Vector3(Mathf.Abs(positionWithin.x), Mathf.Abs(positionWithin.y), Mathf.Abs(positionWithin.z));
+                for (int i = 0; i < allGameObjects.Count;)
+                {
+                    Vector3 position = allGameObjects[i].transform.localPosition;
+                    if (Mathf.Abs(gameObjectPosition.x - position.x) <= absPositionWithin.x &&
+                        Mathf.Abs(gameObjectPosition.y - position.y) <= absPositionWithin.y &&
+                        Mathf.Abs(gameObjectPosition.z - position.z) <= absPositionWithin.z)
+                    {
+                        i++;
+                    }
+                    else
+                    {
+                        allGameObjects.RemoveAt(i);
+                    }
+                }
+                break;
+        }
+    }
+    private void FilterPositionGlobal(List<GameObject> allGameObjects)
     {
         Vector3 gameObjectPosition = gameObject.transform.position;
         switch (positionSetting)
@@ -280,13 +371,12 @@ class SelectAll : EditorWindow
                 greatestInt.z = positionBetween[0].z > positionBetween[1].z ? 0 : 1;
                 //set least
                 least.x = greatestInt.x == 1 ? positionBetween[0].x : positionBetween[1].x;
-                least.y = greatestInt.x == 1 ? positionBetween[0].y : positionBetween[1].y;
-                least.z = greatestInt.x == 1 ? positionBetween[0].z : positionBetween[1].z;
+                least.y = greatestInt.y == 1 ? positionBetween[0].y : positionBetween[1].y;
+                least.z = greatestInt.z == 1 ? positionBetween[0].z : positionBetween[1].z;
                 //set greatest
-                greatestInt *= -1;
-                greatest.x = positionBetween[greatestInt.x].x;
-                greatest.y = positionBetween[greatestInt.y].y;
-                greatest.z = positionBetween[greatestInt.z].z;
+                greatest.x = greatestInt.x == 0 ? positionBetween[0].x : positionBetween[1].x;
+                greatest.y = greatestInt.y == 0 ? positionBetween[0].y : positionBetween[1].y;
+                greatest.z = greatestInt.z == 0 ? positionBetween[0].z : positionBetween[1].z;
                 for (int i = 0; i < allGameObjects.Count;)
                 {
                     Vector3 position = allGameObjects[i].transform.position;
@@ -321,19 +411,91 @@ class SelectAll : EditorWindow
                 break;
         }
     }
-    private void FilterPositionLocal()
-    {
-
-    }
-    private void FilterPositionGlobal()
-    {
-
-    }
+    //rotation 
     private void FilterRotation(List<GameObject> allGameObjects)
     {
 
     }
+    //scale
     private void FilterScale(List<GameObject> allGameObjects)
+    {
+        if (scaleGlobalSetting == GlobalSetting.Global)
+        {
+            FilterScaleGlobal(allGameObjects);
+        }
+        else
+        {
+            FilterScaleLocal(allGameObjects);
+        }
+    }
+    private void FilterScaleGlobal(List<GameObject> allGameObjects)
+    {
+        Vector3 gameObjectScale = gameObject.transform.lossyScale;
+        switch (scaleSetting)
+        {
+            case Vector3Setting.Exatly:
+                for (int i = 0; i < allGameObjects.Count;)
+                {
+                    if (allGameObjects[i].transform.lossyScale == gameObjectScale)
+                    {
+                        i++;
+                    }
+                    else
+                    {
+                        allGameObjects.RemoveAt(i);
+                    }
+                }
+                break;
+            case Vector3Setting.Between:
+                //greater/less than? between values
+                Vector3Int greatestInt = new Vector3Int();
+                Vector3 greatest, least = new Vector3();
+                greatestInt.x = scaleBetween[0].x > scaleBetween[1].x ? 0 : 1;
+                greatestInt.y = scaleBetween[0].y > scaleBetween[1].y ? 0 : 1;
+                greatestInt.z = scaleBetween[0].z > scaleBetween[1].z ? 0 : 1;
+                //set least
+                least.x = greatestInt.x == 1 ? scaleBetween[0].x : scaleBetween[1].x;
+                least.y = greatestInt.x == 1 ? scaleBetween[0].y : scaleBetween[1].y;
+                least.z = greatestInt.x == 1 ? scaleBetween[0].z : scaleBetween[1].z;
+                //set greatest
+                greatest.x = greatestInt.x == 0 ? positionBetween[0].x : positionBetween[1].x;
+                greatest.y = greatestInt.y == 0 ? positionBetween[0].y : positionBetween[1].y;
+                greatest.z = greatestInt.z == 0 ? positionBetween[0].z : positionBetween[1].z;
+                for (int i = 0; i < allGameObjects.Count;)
+                {
+                    Vector3 scale = allGameObjects[i].transform.lossyScale;
+                    if ((scale.x <= greatest.x && scale.x >= least.x) &&
+                        (scale.y <= greatest.y && scale.y >= least.y) &&
+                        (scale.z <= greatest.z && scale.z >= least.z))
+                    {
+                        i++;
+                    }
+                    else
+                    {
+                        allGameObjects.RemoveAt(i);
+                    }
+                }
+                break;
+            case Vector3Setting.Within:
+                Vector3 absScaleWithin = new Vector3(Mathf.Abs(scaleWithin.x), Mathf.Abs(scaleWithin.y), Mathf.Abs(scaleWithin.z));
+                for (int i = 0; i < allGameObjects.Count;)
+                {
+                    Vector3 scale = allGameObjects[i].transform.lossyScale;
+                    if (Mathf.Abs(gameObjectScale.x - scale.x) <= absScaleWithin.x &&
+                        Mathf.Abs(gameObjectScale.y - scale.y) <= absScaleWithin.y &&
+                        Mathf.Abs(gameObjectScale.z - scale.z) <= absScaleWithin.z)
+                    {
+                        i++;
+                    }
+                    else
+                    {
+                        allGameObjects.RemoveAt(i);
+                    }
+                }
+                break;
+        }
+    }
+    private void FilterScaleLocal(List<GameObject> allGameObjects)
     {
         Vector3 gameObjectScale = gameObject.transform.localScale;
         switch (scaleSetting)
@@ -363,9 +525,10 @@ class SelectAll : EditorWindow
                 least.y = greatestInt.x == 1 ? scaleBetween[0].y : scaleBetween[1].y;
                 least.z = greatestInt.x == 1 ? scaleBetween[0].z : scaleBetween[1].z;
                 //set greatest
-                greatest.x = scaleBetween[greatestInt.x].x;
-                greatest.y = scaleBetween[greatestInt.y].y;
-                greatest.z = scaleBetween[greatestInt.z].z;
+                greatest.x = greatestInt.x == 0 ? positionBetween[0].x : positionBetween[1].x;
+                greatest.y = greatestInt.y == 0 ? positionBetween[0].y : positionBetween[1].y;
+                greatest.z = greatestInt.z == 0 ? positionBetween[0].z : positionBetween[1].z;
+
                 for (int i = 0; i < allGameObjects.Count;)
                 {
                     Vector3 scale = allGameObjects[i].transform.localScale;
@@ -400,14 +563,7 @@ class SelectAll : EditorWindow
                 break;
         }
     }
-    private void FilterScaleocal()
-    {
-
-    }
-    private void FilterScaleGlobal()
-    {
-
-    }
+    //active
     private void FilterActive(List<GameObject> allGameObjects)
     {
         switch (activeSetting)
@@ -506,9 +662,90 @@ class SelectAll : EditorWindow
                 break;
         }
     }
+    //components
     private void FilterComponents(List<GameObject> allGameObjects)
     {
+        //all components on gameObject excluding transform
+        List<Component> gameObjectCompoents = new List<Component>();
+        foreach (Component component in gameObject.GetComponents<Component>())
+        {
+            if (component.GetType() != typeof(Transform))
+            {
+                gameObjectCompoents.Add(component);
+            }
+        }
+        switch (componentSetting)
+        {
+            case ComponentSetting.OnlyHas:
+                for (int i = 0; i < allGameObjects.Count;)
+                {
+                    bool remove = false;
+                    //list of components excluding transform
 
+                    List<Component> components = new List<Component>();
+                    foreach (Component component in allGameObjects[i].GetComponents<Component>())
+                    {
+                        if (component.GetType() != typeof(Transform))
+                        {
+                            components.Add(component);
+                        }
+                    }
+                    //if they have the same number of components
+                    if (gameObjectCompoents.Count == components.Count)
+                    {
+                        bool foundComponent = false;
+                        //see if the components are the same
+                        for (int j = 0; j < gameObjectCompoents.Count; j++)
+                        {
+                            //flip though components
+                            for (int k = 0; k < components.Count && foundComponent == false; k++)
+                            {
+                                //compare components
+                                if (CompareComponent(gameObjectCompoents[j], components[k]))
+                                {
+                                    foundComponent = true;
+                                    components.RemoveAt(k);
+                                    break;
+                                }
+                            }
+                            if (foundComponent == false)
+                            {
+                                //object did not have a component
+                                allGameObjects.RemoveAt(i);
+                                break;
+                            }
+                        }
+
+                    }
+                    if (remove)
+                    {
+                        allGameObjects.RemoveAt(i);
+                    }
+                }
+                break;
+            case ComponentSetting.Has:
+                break;
+            case ComponentSetting.DoesNotHave:
+                break;
+        }
+    }
+    private bool CompareComponent(Component component1, Component component2)
+    {
+        if (component1.GetType() == component2.GetType())
+        {
+            if (allowInheritedComponents)
+            {
+
+            }
+            if (careAboutComponentValues)
+            {
+                if (component1.GetType().GetFields() == component2.GetType().GetFields())
+                {
+
+                }
+            }
+        }
+        return true;
     }
     /// <summary>
     /// Get all the GameObjects in the active scene 
