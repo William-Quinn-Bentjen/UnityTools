@@ -6,19 +6,14 @@ using UnityEngine.SceneManagement;
 
 class SelectAll : EditorWindow
 {
-    static GameObject gameObject;
-    static bool addToSelection = true;
-    //name
-    static bool careAboutName;
+    #region Variables
+
+    #region Enums For dropdowns
     enum NameSetting
     {
         ExactMatch,
         Contains
     }
-    static NameSetting nameSetting;
-    static string nameContains;
-    static bool careAboutTag;
-    static bool careAboutLayer;
     //exact match, within values, between values
     enum Vector3Setting
     {
@@ -31,25 +26,6 @@ class SelectAll : EditorWindow
         Global,
         Local
     }
-    //position (global/local support?)
-    static bool careAboutPosition;
-    static GlobalSetting positionGlobalSetting;
-    static Vector3Setting positionSetting;
-    static Vector3 positionWithin;
-    static Vector3[] positionBetween = new Vector3[2] {Vector3.zero, Vector3.zero};
-    //rotation (global/local support?)
-    static bool careAboutRotation;
-    static Vector3Setting rotationSetting;
-    static Vector3 rotationWithin;
-    static Vector3[] rotationBetween = new Vector3[2] { Vector3.zero, Vector3.zero };
-    //scale (global/local support?)
-    static bool careAboutScale;
-    static GlobalSetting scaleGlobalSetting;
-    static Vector3Setting scaleSetting;
-    static Vector3 scaleWithin;
-    static Vector3[] scaleBetween = new Vector3[2] { Vector3.zero, Vector3.zero };
-    //active
-    static bool careAboutActive;
     enum ActiveSetting
     {
         InHierarchy,
@@ -61,26 +37,67 @@ class SelectAll : EditorWindow
         True,
         False
     }
-    static ActiveSetting activeSetting;
-    static BoolSetting activeBoolSetting;
-    static bool careAboutComponents;
     enum ComponentSetting
     {
         OnlyHas,
         Has,
         DoesNotHave,
     }
+    #endregion
+
+    static GameObject gameObject;
+    static bool addToSelection = true;
+    #region Name
+    static bool careAboutName;
+    static NameSetting nameSetting;
+    static string nameContains;
+    #endregion
+    static bool careAboutTag;
+    static bool careAboutLayer;
+    #region Position
+    static bool careAboutPosition;
+    static GlobalSetting positionGlobalSetting;
+    static Vector3Setting positionSetting;
+    static Vector3 positionWithin;
+    static Vector3[] positionBetween = new Vector3[2] {Vector3.zero, Vector3.zero};
+    #endregion
+    #region Rotation
+    static bool careAboutRotation;
+    static Vector3Setting rotationSetting;
+    static Vector3 rotationWithin;
+    static Vector3[] rotationBetween = new Vector3[2] { Vector3.zero, Vector3.zero };
+    #endregion
+    #region Scale
+    static bool careAboutScale;
+    static GlobalSetting scaleGlobalSetting;
+    static Vector3Setting scaleSetting;
+    static Vector3 scaleWithin;
+    static Vector3[] scaleBetween = new Vector3[2] { Vector3.zero, Vector3.zero };
+    #endregion
+    #region Active
+    static bool careAboutActive;
+    static ActiveSetting activeSetting;
+    static BoolSetting activeBoolSetting;
+    #endregion
+    #region Components
+    static bool careAboutComponents;
+
     static ComponentSetting componentSetting;
     static bool allowInheritedComponents;
     static bool careAboutComponentValues;
+    #endregion
     static bool gameObjectIsNull = true;
+
+    #endregion
+
+    #region GUI Functions
+    //Setup window
     [MenuItem("Window/Tools/Select All")]
-    
     public static void ShowWindow()
     {
         GetWindow(typeof(SelectAll), false, "Select all with...", true);
     }
-
+    //Window
     void OnGUI()
     {
         gameObject = (GameObject)EditorGUILayout.ObjectField(gameObject, typeof(GameObject), true);
@@ -171,10 +188,14 @@ class SelectAll : EditorWindow
             //UnityEditor.Selection.gameObjects
         }
     }
+    #endregion
+
+    #region Functions
+    #region Internal
     /// <summary>
-    /// deals with
+    /// deals with what to keep in the selection
     /// </summary>
-    /// <param name="allFilteredGameObjects"></param>
+    /// <param name="allFilteredGameObjects">all GameObjects that matched the search</param>
     private void Select(List<GameObject> allFilteredGameObjects)
     {
         if (addToSelection)
@@ -186,6 +207,136 @@ class SelectAll : EditorWindow
         }
         Selection.objects = allFilteredGameObjects.ToArray();
     }
+    /// <summary>
+    /// Get all the GameObjects in the active scene 
+    /// NOTE: includes inactive objects
+    /// </summary>
+    /// <returns>All GameObjects in the active scene</returns>
+    private List<GameObject> GetAllGameObjects()
+    {
+        List<GameObject> allGameObjects = new List<GameObject>();
+        foreach (GameObject obj in GetRootObjects())
+        {
+            //add root object
+            allGameObjects.Add(obj);
+            //add all children of that object
+            ExploreRootObject(obj.transform, ref allGameObjects);
+        }
+        return allGameObjects;
+    }
+    /// <summary>
+    /// Adds all children of a root GameObject to the list of all children
+    /// </summary>
+    /// <param name="rootTransform">The Transform of the GameObject at the root of the scene (is a child of no one)</param>
+    /// <param name="allChildren">A reference to the list of all children in the scene</param>
+    private void ExploreRootObject(Transform rootTransform, ref List<GameObject> allChildren)
+    {
+        List<Transform> unexplored = new List<Transform>();
+        unexplored.Add(rootTransform);
+        while (unexplored.Count > 0)
+        {
+            unexplored.AddRange(Explore(unexplored[0], ref allChildren));
+            unexplored.RemoveAt(0);
+        }
+    }
+    /// <summary>
+    /// Adds children of parent object to the all children list and returns the children of each child
+    /// </summary>
+    /// <param name="parent">The parent that will have it's children explored</param>
+    /// <param name="allChildren">A reference to the list of all children in the scene</param>
+    /// <returns></returns>
+    private List<Transform> Explore(Transform parent, ref List<GameObject> allChildren)
+    {
+        List<Transform> children = new List<Transform>();
+        foreach (Transform child in parent)
+        {
+            children.Add(child);
+            allChildren.Add(child.gameObject);
+        }
+        return children;
+    }
+    /// <summary>
+    /// Gets the root objects in the active scene
+    /// </summary>
+    /// <returns>A list of all objects in the active scene that are a child of nothing</returns>
+    private List<GameObject> GetRootObjects()
+    {
+        List<GameObject> rootObjects = new List<GameObject>();
+        Scene scene = SceneManager.GetActiveScene();
+        scene.GetRootGameObjects(rootObjects);
+        return rootObjects;
+    }
+    /// <summary>
+    /// used to make a simple toggle with the toggle on the right
+    /// </summary>
+    /// <param name="text">label</param>
+    /// <param name="boolToChange">A reference to the state of the toggle</param>
+    private void Toggle(string text, ref bool boolToChange)
+    {
+        boolToChange = EditorGUILayout.Toggle(text, boolToChange);
+    }
+    /// <summary>
+    /// used to make a simple toggle with the toggle on the left
+    /// </summary>
+    /// <param name="text">label</param>
+    /// <param name="boolToChange">A reference to the state of the toggle</param>
+    private void ToggleLeft(string text, ref bool boolToChange)
+    {
+        boolToChange = EditorGUILayout.ToggleLeft(text, boolToChange);
+    }
+    /// <summary>
+    /// used to make a vector3 input 
+    /// </summary>
+    /// <param name="text">label</param>
+    /// <param name="vector">A reference to the vector</param>
+    private void Vector3Field(string text, ref Vector3 vector)
+    {
+        vector = EditorGUILayout.Vector3Field(text, vector);
+    }
+    
+    //Between
+    private bool Between(float least, float value, float greatest)
+    {
+        if (least <= value && value <= greatest)
+        {
+            return true;
+        }
+        return false;
+    }
+    private bool Between(Vector3 least, Vector3 value, Vector3 greatest)
+    {
+        if (Between(least.x, value.x, greatest.x) &&
+            Between(least.y, value.y, greatest.y) &&
+            Between(least.z, value.z, greatest.z))
+        {
+            return true;
+        }
+        return false;
+    }
+    private bool Between(Vector3 value, Vector3[] leastAndGreatest)
+    {
+        if (Between(leastAndGreatest[0], value, leastAndGreatest[1]))
+        {
+            return true;
+        }
+        return false;
+    }
+
+    private Vector3[] LeastAndGreatest(Vector3 firstVector, Vector3 secondVector)
+    {
+        Vector3 least;
+        Vector3 greatest;
+        least.x = Mathf.Min(firstVector.x, secondVector.x);
+        least.y = Mathf.Min(firstVector.y, secondVector.y);
+        least.z = Mathf.Min(firstVector.z, secondVector.z);
+        greatest.x = Mathf.Max(firstVector.x, secondVector.x);
+        greatest.y = Mathf.Max(firstVector.y, secondVector.y);
+        greatest.z = Mathf.Max(firstVector.z, secondVector.z);
+        return new Vector3[2] { least, greatest };
+    }
+    #endregion
+    #region Filters
+    //filters
     /// <summary>
     /// Main filter 
     /// </summary>
@@ -297,25 +448,11 @@ class SelectAll : EditorWindow
                 break;
             case Vector3Setting.Between:
                 //greater/less than? between values
-                Vector3Int greatestInt = new Vector3Int();
-                Vector3 greatest, least = new Vector3();
-                greatestInt.x = positionBetween[0].x > positionBetween[1].x ? 0 : 1;
-                greatestInt.y = positionBetween[0].y > positionBetween[1].y ? 0 : 1;
-                greatestInt.z = positionBetween[0].z > positionBetween[1].z ? 0 : 1;
-                //set least
-                least.x = greatestInt.x == 1 ? positionBetween[0].x : positionBetween[1].x;
-                least.y = greatestInt.y == 1 ? positionBetween[0].y : positionBetween[1].y;
-                least.z = greatestInt.z == 1 ? positionBetween[0].z : positionBetween[1].z;
-                //set greatest
-                greatest.x = greatestInt.x == 0 ? positionBetween[0].x : positionBetween[1].x;
-                greatest.y = greatestInt.y == 0 ? positionBetween[0].y : positionBetween[1].y;
-                greatest.z = greatestInt.z == 0 ? positionBetween[0].z : positionBetween[1].z;
+                Vector3[] leastAndGreatest = LeastAndGreatest(positionBetween[0], positionBetween[1]);
                 for (int i = 0; i < allGameObjects.Count;)
                 {
                     Vector3 position = allGameObjects[i].transform.localPosition;
-                    if ((position.x <= greatest.x && position.x >= least.x) &&
-                        (position.y <= greatest.y && position.y >= least.y) &&
-                        (position.z <= greatest.z && position.z >= least.z))
+                    if (Between(position, leastAndGreatest))
                     {
                         i++;
                     }
@@ -364,25 +501,11 @@ class SelectAll : EditorWindow
                 break;
             case Vector3Setting.Between:
                 //greater/less than? between values
-                Vector3Int greatestInt = new Vector3Int();
-                Vector3 greatest, least = new Vector3();
-                greatestInt.x = positionBetween[0].x > positionBetween[1].x ? 0 : 1;
-                greatestInt.y = positionBetween[0].y > positionBetween[1].y ? 0 : 1;
-                greatestInt.z = positionBetween[0].z > positionBetween[1].z ? 0 : 1;
-                //set least
-                least.x = greatestInt.x == 1 ? positionBetween[0].x : positionBetween[1].x;
-                least.y = greatestInt.y == 1 ? positionBetween[0].y : positionBetween[1].y;
-                least.z = greatestInt.z == 1 ? positionBetween[0].z : positionBetween[1].z;
-                //set greatest
-                greatest.x = greatestInt.x == 0 ? positionBetween[0].x : positionBetween[1].x;
-                greatest.y = greatestInt.y == 0 ? positionBetween[0].y : positionBetween[1].y;
-                greatest.z = greatestInt.z == 0 ? positionBetween[0].z : positionBetween[1].z;
+                Vector3[] leastAndGreatest = LeastAndGreatest(positionBetween[0], positionBetween[1]);
                 for (int i = 0; i < allGameObjects.Count;)
                 {
                     Vector3 position = allGameObjects[i].transform.position;
-                    if ((position.x <= greatest.x && position.x >= least.x) &&
-                        (position.y <= greatest.y && position.y >= least.y) &&
-                        (position.z <= greatest.z && position.z >= least.z))
+                    if (Between(position, leastAndGreatest))
                     {
                         i++;
                     }
@@ -411,7 +534,7 @@ class SelectAll : EditorWindow
                 break;
         }
     }
-    //rotation 
+    //rotation *******************
     private void FilterRotation(List<GameObject> allGameObjects)
     {
 
@@ -447,26 +570,11 @@ class SelectAll : EditorWindow
                 }
                 break;
             case Vector3Setting.Between:
-                //greater/less than? between values
-                Vector3Int greatestInt = new Vector3Int();
-                Vector3 greatest, least = new Vector3();
-                greatestInt.x = scaleBetween[0].x > scaleBetween[1].x ? 0 : 1;
-                greatestInt.y = scaleBetween[0].y > scaleBetween[1].y ? 0 : 1;
-                greatestInt.z = scaleBetween[0].z > scaleBetween[1].z ? 0 : 1;
-                //set least
-                least.x = greatestInt.x == 1 ? scaleBetween[0].x : scaleBetween[1].x;
-                least.y = greatestInt.x == 1 ? scaleBetween[0].y : scaleBetween[1].y;
-                least.z = greatestInt.x == 1 ? scaleBetween[0].z : scaleBetween[1].z;
-                //set greatest
-                greatest.x = greatestInt.x == 0 ? positionBetween[0].x : positionBetween[1].x;
-                greatest.y = greatestInt.y == 0 ? positionBetween[0].y : positionBetween[1].y;
-                greatest.z = greatestInt.z == 0 ? positionBetween[0].z : positionBetween[1].z;
+                Vector3[] leastAndGreatest = LeastAndGreatest(scaleBetween[0], scaleBetween[1]);
                 for (int i = 0; i < allGameObjects.Count;)
                 {
                     Vector3 scale = allGameObjects[i].transform.lossyScale;
-                    if ((scale.x <= greatest.x && scale.x >= least.x) &&
-                        (scale.y <= greatest.y && scale.y >= least.y) &&
-                        (scale.z <= greatest.z && scale.z >= least.z))
+                    if (Between(scale, leastAndGreatest))
                     {
                         i++;
                     }
@@ -480,7 +588,7 @@ class SelectAll : EditorWindow
                 Vector3 absScaleWithin = new Vector3(Mathf.Abs(scaleWithin.x), Mathf.Abs(scaleWithin.y), Mathf.Abs(scaleWithin.z));
                 for (int i = 0; i < allGameObjects.Count;)
                 {
-                    Vector3 scale = allGameObjects[i].transform.lossyScale;
+                    Vector3 scale = allGameObjects[i].transform.localScale;
                     if (Mathf.Abs(gameObjectScale.x - scale.x) <= absScaleWithin.x &&
                         Mathf.Abs(gameObjectScale.y - scale.y) <= absScaleWithin.y &&
                         Mathf.Abs(gameObjectScale.z - scale.z) <= absScaleWithin.z)
@@ -514,27 +622,14 @@ class SelectAll : EditorWindow
                 }
                 break;
             case Vector3Setting.Between:
-                //greater/less than? between values
-                Vector3Int greatestInt = new Vector3Int();
-                Vector3 greatest, least = new Vector3();
-                greatestInt.x = scaleBetween[0].x > scaleBetween[1].x ? 0 : 1;
-                greatestInt.y = scaleBetween[0].y > scaleBetween[1].y ? 0 : 1;
-                greatestInt.z = scaleBetween[0].z > scaleBetween[1].z ? 0 : 1;
-                //set least
-                least.x = greatestInt.x == 1 ? scaleBetween[0].x : scaleBetween[1].x;
-                least.y = greatestInt.x == 1 ? scaleBetween[0].y : scaleBetween[1].y;
-                least.z = greatestInt.x == 1 ? scaleBetween[0].z : scaleBetween[1].z;
-                //set greatest
-                greatest.x = greatestInt.x == 0 ? positionBetween[0].x : positionBetween[1].x;
-                greatest.y = greatestInt.y == 0 ? positionBetween[0].y : positionBetween[1].y;
-                greatest.z = greatestInt.z == 0 ? positionBetween[0].z : positionBetween[1].z;
+                //greater / less than? between values
+
+                Vector3[] leastAndGreatest = LeastAndGreatest(scaleBetween[0], scaleBetween[1]);
 
                 for (int i = 0; i < allGameObjects.Count;)
                 {
                     Vector3 scale = allGameObjects[i].transform.localScale;
-                    if ((scale.x <= greatest.x && scale.x >= least.x) &&
-                        (scale.y <= greatest.y && scale.y >= least.y) &&
-                        (scale.z <= greatest.z && scale.z >= least.z))
+                    if (Between(scale, leastAndGreatest))
                     {
                         i++;
                     }
@@ -662,7 +757,7 @@ class SelectAll : EditorWindow
                 break;
         }
     }
-    //components
+    //components *******************
     private void FilterComponents(List<GameObject> allGameObjects)
     {
         //all components on gameObject excluding transform
@@ -747,85 +842,13 @@ class SelectAll : EditorWindow
         }
         return true;
     }
-    /// <summary>
-    /// Get all the GameObjects in the active scene 
-    /// NOTE: includes inactive objects
-    /// </summary>
-    /// <returns>All GameObjects in the active scene</returns>
-    private List<GameObject> GetAllGameObjects()
-    {
-        List<GameObject> allGameObjects = new List<GameObject>();
-        foreach (GameObject obj in GetRootObjects())
-        {
-            //add root object
-            allGameObjects.Add(obj);
-            //add all children of that object
-            ExploreRootObject(obj.transform, ref allGameObjects);
-        }
-        return allGameObjects;
-    }
-    /// <summary>
-    /// Adds all children of a root GameObject to the list of all children
-    /// </summary>
-    /// <param name="rootTransform">The Transform of the GameObject at the root of the scene (is a child of no one)</param>
-    /// <param name="allChildren">A reference to the list of all children in the scene</param>
-    private void ExploreRootObject(Transform rootTransform, ref List<GameObject> allChildren)
-    {
-        List<Transform> unexplored = new List<Transform>();
-        unexplored.Add(rootTransform);
-        while(unexplored.Count > 0)
-        { 
-            unexplored.AddRange(Explore(unexplored[0], ref allChildren));
-            unexplored.RemoveAt(0);
-        }
-    }
-    /// <summary>
-    /// Adds children of parent object to the all children list and returns the children of each child
-    /// </summary>
-    /// <param name="parent">The parent that will have it's children explored</param>
-    /// <param name="allChildren">A reference to the list of all children in the scene</param>
-    /// <returns></returns>
-    private List<Transform> Explore(Transform parent, ref List<GameObject> allChildren)
-    {
-        List<Transform> children = new List<Transform>();
-        foreach(Transform child in parent)
-        {
-            children.Add(child);
-            allChildren.Add(child.gameObject);
-        }
-        return children;
-    }
-    /// <summary>
-    /// Gets the root objects in the active scene
-    /// </summary>
-    /// <returns>A list of all objects in the active scene that are a child of nothing</returns>
-    private List<GameObject> GetRootObjects()
-    {
-        List <GameObject> rootObjects = new List<GameObject>();
-        Scene scene = SceneManager.GetActiveScene();
-        scene.GetRootGameObjects(rootObjects);
-        return rootObjects;
-    }
-    /// <summary>
-    /// used to make a simple toggle with the toggle on the right
-    /// </summary>
-    /// <param name="text">label</param>
-    /// <param name="boolToChange">A reference to the state of the toggle</param>
-    private void Toggle(string text, ref bool boolToChange)
-    {
-        boolToChange = EditorGUILayout.Toggle(text, boolToChange);
-    }
-    /// <summary>
-    /// used to make a simple toggle with the toggle on the left
-    /// </summary>
-    /// <param name="text">label</param>
-    /// <param name="boolToChange">A reference to the state of the toggle</param>
-    private void ToggleLeft(string text, ref bool boolToChange)
-    {
-        boolToChange = EditorGUILayout.ToggleLeft(text, boolToChange);
-    }
-    private void Vector3Field(string text, ref Vector3 vector)
-    {
-        vector = EditorGUILayout.Vector3Field(text, vector);
-    }
+    #endregion
+    #endregion
+    #region Notes
+    /*
+     * 
+     * 
+     * 
+    */
+    #endregion
 }
